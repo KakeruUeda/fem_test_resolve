@@ -202,7 +202,7 @@ int sysGmres(int argc, char *argv[])
   check_file.seekg(0, std::ios::end);
   if (check_file.tellg() == 0)
   {
-    log_time << "# step time [s]\n";
+    log_time << "# step solve_time[s] setup_time[s]\n";
     log_time.flush();
   }
   check_file.close();
@@ -304,17 +304,23 @@ int sysGmres(int argc, char *argv[])
     {
       std::cout << "solver.setMatrix returned status: " << status << "\n";
       return_code = 1;
-    }
+    }    std::chrono::duration<double> setup_duration(0.0);
+    auto setup_start = std::chrono::high_resolution_clock::now();
+    auto setup_end = std::chrono::high_resolution_clock::now();
 
-    // Set up the preconditioner for each new matrix
-    if (return_code == 0)
+    // Set up the preconditioner only on first matrix
+    if (return_code == 0 && i == 0)
     {
+      setup_start = std::chrono::high_resolution_clock::now();
       status = solver.preconditionerSetup();
+      setup_end = std::chrono::high_resolution_clock::now();
+      
       if (status != 0)
       {
         std::cout << "solver.preconditionerSetup returned status: " << status << "\n";
         return_code = 1;
       }
+      setup_duration = setup_end - setup_start;
     }
 
     // Initialize solution vector to zero
@@ -329,7 +335,8 @@ int sysGmres(int argc, char *argv[])
 
       std::chrono::duration<double> solve_duration = solve_end - solve_start;
 
-      log_time << i << " " << std::scientific << std::setprecision(16) << solve_duration.count() << "\n";
+      log_time << i << " " << std::scientific << std::setprecision(16) 
+               << solve_duration.count() << " " << setup_duration.count() << "\n";
       log_time.flush();
 
       if (status != 0)
@@ -383,12 +390,9 @@ int sysGmres(int argc, char *argv[])
   }
 
   // Final cleanup
-  if (A != nullptr)
-    delete A;
-  if (vec_rhs != nullptr)
-    delete vec_rhs;
-  if (vec_x != nullptr)
-    delete vec_x;
+  delete A;
+  delete vec_rhs;
+  delete vec_x;
 
   return return_code;
 }

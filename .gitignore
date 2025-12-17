@@ -1,6 +1,9 @@
 data/
 !data/demo/
 !data/demo/**
+examples/
+!examples/demo
+!examples/demo/**
 build
 output
 outputs

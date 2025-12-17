@@ -1,6 +1,7 @@
+-o output_re1000_res_mid
 -b cuda
 -i fgmres
 -x yes 
--m data/cavity_re1000_res_high/systems/A_NS_
--r data/cavity_re1000_res_high/systems/b_NS_
+-m ../../data/cavity_re1000_res_mid/systems/A_NS_
+-r ../../data/cavity_re1000_res_mid/systems/b_NS_
 -n 3000
