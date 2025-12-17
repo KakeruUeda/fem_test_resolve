@@ -1,4 +1,6 @@
-data
+data/
 !data/demo/
+!data/demo/**
 build
+output
 outputs

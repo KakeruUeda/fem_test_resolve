@@ -4,5 +4,5 @@
 -x yes 
 -m ../../data/demo/systems/A_NS_
 -r ../../data/demo/systems/b_NS_
--n 3000
+-n 100
 

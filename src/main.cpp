@@ -353,7 +353,7 @@ int sysGmres(int argc, char *argv[])
     }
 
     // Output vec_x to .bin file.
-    int output_interval = 1;
+    int output_interval = 10;
     if (i % output_interval == 0)
     {
       std::ostringstream outname;
