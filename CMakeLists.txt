@@ -13,7 +13,7 @@ find_package(ReSolve CONFIG
 
 # Build your executable 
 add_executable(sysGmres
-  main.cpp
+  src/main.cpp
 )
 
 target_compile_features(sysGmres PRIVATE cxx_std_17)

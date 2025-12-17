@@ -1,0 +1,8 @@
+-o outputs
+-b cuda
+-i fgmres
+-x yes 
+-m ../../data/demo/systems/A_NS_
+-r ../../data/demo/systems/b_NS_
+-n 3000
+

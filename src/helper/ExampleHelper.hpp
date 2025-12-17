@@ -216,6 +216,17 @@ namespace ReSolve
         std::cout << "\t Number of iterations                           : " << ls->getNumIter() << "\n";
       }
 
+      /// Summary of error norms for an iterative solver test.
+      void printIterativeSolverSummary(ReSolve::LinSolverIterative* ls, std::ostream& log)
+      {
+        log << std::setprecision(16) << std::scientific;
+        log << "\t Initial residual norm          ||b-A*x||       : " << ls->getInitResidualNorm() << "\n";
+        log << "\t Initial relative residual norm ||b-A*x||/||b|| : " << ls->getInitResidualNorm() / norm_rhs_ << "\n";
+        log << "\t Final residual norm            ||b-A*x||       : " << ls->getFinalResidualNorm() << "\n";
+        log << "\t Final relative residual norm   ||b-A*x||/||b|| : " << ls->getFinalResidualNorm() / norm_rhs_ << "\n";
+        log << "\t Number of iterations                           : " << ls->getNumIter() << "\n";
+      }
+
       /// Check the relative residual norm against `tolerance`.
       int checkResult(ReSolve::real_type tolerance)
       {

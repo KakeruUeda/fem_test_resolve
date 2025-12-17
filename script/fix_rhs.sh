@@ -1,4 +1,4 @@
-cd data/cavityflow
+cd ../data/cavity_re1000_res_high/systems
 
 for f in b_NS_*.mtx; do
   echo "Fixing $f"

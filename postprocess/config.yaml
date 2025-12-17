@@ -1,0 +1,10 @@
+io:
+  dof_mapping_file: ../data/demo/dof_coordinate.txt
+  solution_dir: ../examples/demo/outputs
+  output_dir: ../examples/demo/outputs/vtu
+
+# --- configurations for demo ---
+# io:
+#   dof_mapping_file: ../data/demo/dof_coordinate.txt
+#   solution_dir: ../examples/demo/outputs
+#  output_dir: ../examples/demo/outputs/vtu

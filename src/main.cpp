@@ -10,7 +10,7 @@
 #include <fstream>
 #include <sys/stat.h>
 
-#include "ExampleHelper.hpp"
+#include "helper/ExampleHelper.hpp"
 #include <resolve/SystemSolver.hpp>
 #include <resolve/matrix/Csr.hpp>
 #include <resolve/matrix/io.hpp>
@@ -105,31 +105,6 @@ int main(int argc, char *argv[])
 template <class workspace_type>
 int sysGmres(int argc, char *argv[])
 {
-  std::string output_dir_tmp = "outputs";
-  mkdir(output_dir_tmp.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
-
-  std::string output_dir = "outputs/cavityflow";
-  mkdir(output_dir.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
-
-  std::ofstream log;
-  std::string log_path = output_dir + "/run.log";
-  log.open(log_path, std::ios::app);
-  if (!log)
-  {
-    std::cout << "Failed to open log file\n";
-    return 0;
-  }
-  
-  // Check if file is new (empty) and write header
-  std::ifstream check_file(log_path);
-  check_file.seekg(0, std::ios::end);
-  if (check_file.tellg() == 0)
-  {
-    log << "step time [s]\n";
-    log.flush();
-  }
-  check_file.close();
-
   // return_code is used as a failure flag.
   int return_code = 0;
   int status = 0;
@@ -144,8 +119,11 @@ int sysGmres(int argc, char *argv[])
     return 0;
   }
 
+  auto opt = options.getParamFromKey("-o");
+  std::string output_pathname = opt ? (*opt).second : "demo";
+
   // Read matrix file
-  auto opt = options.getParamFromKey("-m");
+  opt = options.getParamFromKey("-m");
   std::string matrix_pathname("");
   if (opt)
   {
@@ -170,10 +148,10 @@ int sysGmres(int argc, char *argv[])
     std::cout << "Incorrect input!\n";
     printHelpInfo();
     return 1;
-  } 
-  
+  }
+
   index_type num_systems = 0;
-  opt         = options.getParamFromKey("-n");
+  opt = options.getParamFromKey("-n");
   if (opt)
   {
     num_systems = atoi((opt->second).c_str());
@@ -204,6 +182,32 @@ int sysGmres(int argc, char *argv[])
             << "Family rhs file name: " << rhs_pathname
             << ", total number of RHSes: " << num_systems << "\n";
 
+  std::string output_dir = output_pathname;
+  mkdir(output_dir.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
+
+  std::ofstream log_time, log_system;
+  std::string log_time_path = output_dir + "/time.log";
+  std::string log_system_path = output_dir + "/system.log";
+
+  log_time.open(log_time_path, std::ios::app);
+  log_system.open(log_system_path, std::ios::app);
+  if (!log_time || !log_system)
+  {
+    std::cout << "Failed to open log file\n";
+    return 0;
+  }
+
+  // Check if file is new (empty) and write header
+  std::ifstream check_file(log_time_path);
+  check_file.seekg(0, std::ios::end);
+  if (check_file.tellg() == 0)
+  {
+    log_time << "# step time [s]\n";
+    log_time.flush();
+  }
+  check_file.close();
+  // ---------------- io setup -------------------
+
   // Create workspace
   workspace_type workspace;
   workspace.initializeHandles();
@@ -225,7 +229,19 @@ int sysGmres(int argc, char *argv[])
                       "none");
 
   solver.setGramSchmidtMethod(gs);
-
+  
+  // Set iterative solver options
+  solver.getIterativeSolver().setCliParam("maxit", "2500");
+  solver.getIterativeSolver().setCliParam("tol", "1e-8");
+  
+  // Set GMRES solver options (before loop)
+  if (method == "randgmres")
+  {
+    solver.setSketchingMethod(sketch);
+  }
+  solver.getIterativeSolver().setCliParam("flexible", flexible);
+  solver.getIterativeSolver().setCliParam("restart", "200");
+  
   bool is_expand_symmetric = true;
 
   matrix::Csr *A = nullptr;
@@ -234,7 +250,7 @@ int sysGmres(int argc, char *argv[])
 
   for (int i = 0; i < num_systems; ++i)
   {
-    std::cout << "step: " << i << "/" << num_systems << "\n"; 
+    std::cout << "step: " << i + 1 << "/" << num_systems << "\n";
     std::ostringstream matname;
     std::ostringstream rhsname;
 
@@ -272,7 +288,7 @@ int sysGmres(int argc, char *argv[])
       io::updateMatrixFromFile(mat_file, A);
       io::updateVectorFromFile(rhs_file, vec_rhs);
     }
-    
+
     if (memspace == memory::DEVICE)
     {
       // Copy data to the device
@@ -283,10 +299,6 @@ int sysGmres(int argc, char *argv[])
     mat_file.close();
     rhs_file.close();
 
-    // Set iterative solver options
-    solver.getIterativeSolver().setCliParam("maxit", "2500");
-    solver.getIterativeSolver().setCliParam("tol", "1e-8");
-    
     status = solver.setMatrix(A);
     if (status != 0)
     {
@@ -294,15 +306,7 @@ int sysGmres(int argc, char *argv[])
       return_code = 1;
     }
 
-    // Set GMRES solver options
-    if (method == "randgmres")
-    {
-      solver.setSketchingMethod(sketch);
-    }
-    solver.getIterativeSolver().setCliParam("flexible", flexible);
-    solver.getIterativeSolver().setCliParam("restart", "200");
-
-    // Set up the preconditioner
+    // Set up the preconditioner for each new matrix
     if (return_code == 0)
     {
       status = solver.preconditionerSetup();
@@ -313,18 +317,21 @@ int sysGmres(int argc, char *argv[])
       }
     }
 
+    // Initialize solution vector to zero
+    vec_x->setToZero(memspace);
+
     // Solve the system
     if (return_code == 0)
     {
       auto solve_start = std::chrono::high_resolution_clock::now();
-      
       status = solver.solve(vec_rhs, vec_x);
-      
       auto solve_end = std::chrono::high_resolution_clock::now();
+
       std::chrono::duration<double> solve_duration = solve_end - solve_start;
-      
-      log << i << " " << std::scientific << std::setprecision(16) << solve_duration.count() << "\n";
-      
+
+      log_time << i << " " << std::scientific << std::setprecision(16) << solve_duration.count() << "\n";
+      log_time.flush();
+
       if (status != 0)
       {
         std::cout << "solver.solve returned status: " << status << "\n";
@@ -335,10 +342,38 @@ int sysGmres(int argc, char *argv[])
     if (return_code == 0)
     {
       helper.resetSystem(A, vec_rhs, vec_x);
+      log_system << "Simulation step: " << i << "\n";
 
       // Get reference to iterative solver and print results
-      // LinSolverIterative &iter_solver = solver.getIterativeSolver();
-      // helper.printIterativeSolverSummary(&iter_solver);
+      LinSolverIterative &iter_solver = solver.getIterativeSolver();
+      helper.printIterativeSolverSummary(&iter_solver, log_system);
+      log_system << "\n";
+
+      log_system.flush();
+    }
+
+    // Output vec_x to .bin file.
+    int output_interval = 1;
+    if (i % output_interval == 0)
+    {
+      std::ostringstream outname;
+      outname << output_dir << "/solution_" << std::setfill('0') << std::setw(4) << i << ".bin";
+      std::string output_file = outname.str();
+
+      std::ofstream bin_file(output_file, std::ios::binary);
+      if (bin_file.is_open())
+      {
+        index_type size = vec_x->getSize();
+        real_type* data = vec_x->getData(memory::HOST);
+
+        bin_file.write(reinterpret_cast<char *>(&size), sizeof(index_type));
+        bin_file.write(reinterpret_cast<char *>(data), size * sizeof(real_type));
+        bin_file.close();
+      }
+      else
+      {
+        std::cout << "Failed to open output file: " << output_file << "\n";
+      }
     }
 
     if (return_code == 1)
@@ -348,9 +383,12 @@ int sysGmres(int argc, char *argv[])
   }
 
   // Final cleanup
-  if (A != nullptr) delete A;
-  if (vec_rhs != nullptr) delete vec_rhs;
-  if (vec_x != nullptr) delete vec_x;
+  if (A != nullptr)
+    delete A;
+  if (vec_rhs != nullptr)
+    delete vec_rhs;
+  if (vec_x != nullptr)
+    delete vec_x;
 
   return return_code;
 }
