@@ -1,7 +1,0 @@
--o test
--b cuda
--i fgmres
--x yes 
--m ../../data/cavity_re1000_res_mid/systems/A_NS_
--r ../../data/cavity_re1000_res_mid/systems/b_NS_
--n 1
