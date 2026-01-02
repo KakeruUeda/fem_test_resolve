@@ -1,5 +1,5 @@
 /**
- * @file main.pp
+ * @file main.cpp
  * @author Kakeru Ueda (ueda.k.2290@m.isct.ac.jp)
  */
 
@@ -160,6 +160,7 @@ int sysGmres(int argc, char *argv[])
   {
     std::cout << "Incorrect input!\n";
     printHelpInfo();
+    return 1;
   }
 
   // Read GMRES-related options
@@ -185,27 +186,38 @@ int sysGmres(int argc, char *argv[])
   std::string output_dir = output_pathname;
   mkdir(output_dir.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
 
-  std::ofstream log_time, log_system;
-  std::string log_time_path = output_dir + "/time.log";
+  std::ofstream log_solve_time, log_total_time, log_system;
+  std::string log_solve_time_path = output_dir + "/solve_time.log";
+  std::string log_total_time_path = output_dir + "/total_time.log";
   std::string log_system_path = output_dir + "/system.log";
 
-  log_time.open(log_time_path, std::ios::app);
+  log_solve_time.open(log_solve_time_path, std::ios::app);
+  log_total_time.open(log_total_time_path, std::ios::app);
   log_system.open(log_system_path, std::ios::app);
-  if (!log_time || !log_system)
+  if (!log_solve_time || !log_total_time || !log_system)
   {
     std::cout << "Failed to open log file\n";
     return 0;
   }
 
   // Check if file is new (empty) and write header
-  std::ifstream check_file(log_time_path);
+  std::ifstream check_file(log_solve_time_path);
   check_file.seekg(0, std::ios::end);
   if (check_file.tellg() == 0)
   {
-    log_time << "# step solve_time[s] setup_time[s]\n";
-    log_time.flush();
+    log_solve_time << "# step, solve time [s]\n";
+    log_solve_time.flush();
   }
   check_file.close();
+
+  std::ifstream check_file2(log_total_time_path);
+  check_file2.seekg(0, std::ios::end);
+  if (check_file2.tellg() == 0)
+  {
+    log_total_time << "# total time [s]\n";
+    log_total_time.flush();
+  }
+  check_file2.close();
   // ---------------- io setup -------------------
 
   // Create workspace
@@ -247,6 +259,8 @@ int sysGmres(int argc, char *argv[])
   matrix::Csr *A = nullptr;
   vector_type *vec_rhs = nullptr;
   vector_type *vec_x = nullptr;
+
+  auto total_start = std::chrono::high_resolution_clock::now();
 
   for (int i = 0; i < num_systems; ++i)
   {
@@ -299,29 +313,49 @@ int sysGmres(int argc, char *argv[])
     mat_file.close();
     rhs_file.close();
 
-    status = solver.setMatrix(A);
-    if (status != 0)
+    if (i == 0)
     {
-      std::cout << "solver.setMatrix returned status: " << status << "\n";
-      return_code = 1;
-    }    std::chrono::duration<double> setup_duration(0.0);
-    auto setup_start = std::chrono::high_resolution_clock::now();
-    auto setup_end = std::chrono::high_resolution_clock::now();
-
-    // Set up the preconditioner only on first matrix
-    if (return_code == 0 && i == 0)
-    {
-      setup_start = std::chrono::high_resolution_clock::now();
-      status = solver.preconditionerSetup();
-      setup_end = std::chrono::high_resolution_clock::now();
-      
+      status = solver.setMatrix(A);
       if (status != 0)
       {
-        std::cout << "solver.preconditionerSetup returned status: " << status << "\n";
+        std::cout << "solver.setMatrix returned status: " << status << "\n";
         return_code = 1;
-      }
-      setup_duration = setup_end - setup_start;
+      }    
     }
+    else
+    {
+      status = solver.setMatrix(A);
+    }
+
+    if (i == 0)
+    {
+      // Set up the preconditioner only on first matrix
+      if (return_code == 0)
+      {
+        status = solver.preconditionerSetup();
+
+        if (status != 0)
+        {
+          std::cout << "solver.preconditionerSetup returned status: " << status << "\n";
+          return_code = 1;
+        }
+      }
+    }
+    else
+    {
+      // Update and re-setup the preconditioner for subsequent matrices
+      if (return_code == 0)
+      {
+        status = solver.resetPreconditioner(A);
+
+        if (status != 0)
+        {
+          std::cout << "solver.resetPreconditioner returned status: " << status << "\n";
+          return_code = 1;
+        }
+      }
+    }
+
 
     // Initialize solution vector to zero
     vec_x->setToZero(memspace);
@@ -335,9 +369,9 @@ int sysGmres(int argc, char *argv[])
 
       std::chrono::duration<double> solve_duration = solve_end - solve_start;
 
-      log_time << i << " " << std::scientific << std::setprecision(16) 
-               << solve_duration.count() << " " << setup_duration.count() << "\n";
-      log_time.flush();
+      log_solve_time << i << " " << std::scientific << std::setprecision(16) 
+                     << solve_duration.count() << "\n";
+      log_solve_time.flush();
 
       if (status != 0)
       {
@@ -388,6 +422,16 @@ int sysGmres(int argc, char *argv[])
       break;
     }
   }
+
+  auto total_end = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<double> total_duration = total_end - total_start;
+
+  log_total_time << std::scientific << std::setprecision(16) << total_duration.count() << "\n";
+  log_total_time.flush();
+
+  log_solve_time.close();
+  log_system.close();
+  log_total_time.close();
 
   // Final cleanup
   delete A;

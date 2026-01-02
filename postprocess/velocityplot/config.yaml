@@ -1,0 +1,8 @@
+io:
+  solution:
+    i_dir: ../../examples/cavity/output_cuda_re1000_res_low/plot
+  reference:
+    i_dir: reference
+  output:
+    o_dir: ../../examples/cavity/output_cuda_re1000_res_low/plot
+    filename: velocity_plot.png

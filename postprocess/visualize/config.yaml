@@ -1,0 +1,10 @@
+io:
+  dof_mapping_file: ../data/cavity_re1000_res_very_low/dof_coordinate.txt
+  solution_dir: ../examples/cavity/output_cpu_re1000_res_very_low
+  output_dir: ../examples/cavity/output_cpu_re1000_res_very_low/vtu
+
+# --- configurations for demo ---
+# io:
+#   dof_mapping_file: ../data/demo/dof_coordinate.txt
+#   solution_dir: ../examples/demo/outputs
+#  output_dir: ../examples/demo/outputs/vtu
